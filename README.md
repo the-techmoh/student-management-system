@@ -6,12 +6,18 @@ A simple Python-based Student Management System that allows users to add, update
 This project demonstrates CRUD operations, file handling, and structured programming using Python.
 
 
-## Features
-- Add new student records
-- View all students
-- Update student details
-- Delete student records
-- Persistent storage using file handling
+Flask-based Student Management System
+
+## Features:
+- User registration & login
+- Password hashing
+- Session authentication
+- Full CRUD operations
+- Search functionality
+- Flash messages
+- SQLite database
+- Bootstrap UI
+
 
 ##  Technologies Used
 - Python
