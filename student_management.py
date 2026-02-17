@@ -1,282 +1,233 @@
-import json
+from flask import Flask, render_template, request, redirect, flash, session
+import sqlite3
+from werkzeug.security import generate_password_hash, check_password_hash
+
+app = Flask(__name__)
+app.secret_key = "supersecretkey"
 
 
-class StudentManager:
-    def __init__(self, filename="students.json"):
-        self.filename = filename
-        self.students = {}
-        self.load_students()
+# -----------------------------
+# DATABASE INITIALIZATION
+# -----------------------------
 
-    def load_students(self):
+def init_db():
+    conn = sqlite3.connect("students.db")
+    cursor = conn.cursor()
+
+    # Students table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS students (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            age INTEGER NOT NULL,
+            course TEXT NOT NULL
+        )
+    """)
+
+    # Users table
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+
+init_db()
+
+
+# -----------------------------
+# HOME (Dashboard)
+# -----------------------------
+
+@app.route("/", methods=["GET"])
+def home():
+    if "user" not in session:
+        return redirect("/login")
+
+    search = request.args.get("search")
+
+    conn = sqlite3.connect("students.db")
+    cursor = conn.cursor()
+
+    if search:
+        cursor.execute(
+            "SELECT * FROM students WHERE name LIKE ?",
+            ('%' + search + '%',)
+        )
+    else:
+        cursor.execute("SELECT * FROM students")
+
+    students = cursor.fetchall()
+    conn.close()
+
+    return render_template("index.html", students=students)
+
+
+# -----------------------------
+# ADD STUDENT
+# -----------------------------
+
+@app.route("/add", methods=["POST"])
+def add():
+    if "user" not in session:
+        return redirect("/login")
+
+    name = request.form["name"]
+    age = request.form["age"]
+    course = request.form["course"]
+
+    conn = sqlite3.connect("students.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO students (name, age, course) VALUES (?, ?, ?)",
+        (name, age, course)
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Student added successfully!", "success")
+    return redirect("/")
+
+
+# -----------------------------
+# DELETE STUDENT
+# -----------------------------
+
+@app.route("/delete/<int:id>")
+def delete(id):
+    if "user" not in session:
+        return redirect("/login")
+
+    conn = sqlite3.connect("students.db")
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM students WHERE id=?", (id,))
+    conn.commit()
+    conn.close()
+
+    flash("Student deleted successfully!", "danger")
+    return redirect("/")
+
+
+# -----------------------------
+# EDIT STUDENT
+# -----------------------------
+
+@app.route("/edit/<int:id>")
+def edit(id):
+    if "user" not in session:
+        return redirect("/login")
+
+    conn = sqlite3.connect("students.db")
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM students WHERE id=?", (id,))
+    student = cursor.fetchone()
+    conn.close()
+
+    return render_template("edit.html", student=student)
+
+
+# -----------------------------
+# UPDATE STUDENT
+# -----------------------------
+
+@app.route("/update/<int:id>", methods=["POST"])
+def update(id):
+    if "user" not in session:
+        return redirect("/login")
+
+    name = request.form["name"]
+    age = request.form["age"]
+    course = request.form["course"]
+
+    conn = sqlite3.connect("students.db")
+    cursor = conn.cursor()
+    cursor.execute(
+        "UPDATE students SET name=?, age=?, course=? WHERE id=?",
+        (name, age, course, id)
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Student updated successfully!", "info")
+    return redirect("/")
+
+
+# -----------------------------
+# REGISTER
+# -----------------------------
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        hashed_password = generate_password_hash(password)
+
+        conn = sqlite3.connect("students.db")
+        cursor = conn.cursor()
+
         try:
-            with open(self.filename, "r") as file:
-                self.students = json.load(file)
-        except FileNotFoundError:
-            self.students = {}
+            cursor.execute(
+                "INSERT INTO users (username, password) VALUES (?, ?)",
+                (username, hashed_password)
+            )
+            conn.commit()
+            flash("Registration successful! Please login.", "success")
+            return redirect("/login")
+        except:
+            flash("Username already exists!", "danger")
 
-    def save_students(self):
-        with open(self.filename, "w") as file:
-            json.dump(self.students, file)
+        conn.close()
 
-    def get_grade(self, score):
-        if score >= 70:
-            return "A"
-        elif score >= 60:
-            return "B"
-        elif score >= 50:
-            return "C"
-        elif score >= 45:
-            return "D"
-        elif score >= 40:
-            return "E"
+    return render_template("register.html")
+
+
+# -----------------------------
+# LOGIN
+# -----------------------------
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        conn = sqlite3.connect("students.db")
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM users WHERE username=?", (username,))
+        user = cursor.fetchone()
+        conn.close()
+
+        if user and check_password_hash(user[2], password):
+            session["user"] = username
+            flash("Login successful!", "success")
+            return redirect("/")
         else:
-            return "F"
+            flash("Invalid credentials!", "danger")
 
-    def get_valid_score(self):
-        while True:
-            try:
-                score = int(input("Enter score (0–100): "))
-                if 0 <= score <= 100:
-                    return score
-                else:
-                    print("Score must be between 0 and 100.")
-            except ValueError:
-                print("Invalid input. Enter a number.")
-
-    def add_student(self):
-        name = input("Enter student name: ").strip()
-
-        if not name:
-            print("Name cannot be empty.")
-            return
-
-        score = self.get_valid_score()
-        grade = self.get_grade(score)
-
-        self.students[name] = {
-            "score": score,
-            "grade": grade
-        }
-
-        self.save_students()
-        print("Student added successfully")
-
-    def display_students(self):
-        if not self.students:
-            print("No students available")
-            return
-
-        print("\n--- Student Records ---")
-        for name, info in self.students.items():
-            print(name, "- Score:", info["score"], "Grade:", info["grade"])
-
-    def calculate_average(self):
-        if not self.students:
-            print("No students to calculate average")
-            return
-
-        total = sum(info["score"] for info in self.students.values())
-        average = total / len(self.students)
-        print("Average Score:", average)
-
-    def update_student(self):
-        name = input("Enter student name to update: ").strip()
-
-        if name not in self.students:
-            print("Student not found.")
-            return
-
-        new_score = self.get_valid_score()
-        new_grade = self.get_grade(new_score)
-
-        self.students[name]["score"] = new_score
-        self.students[name]["grade"] = new_grade
-
-        self.save_students()
-        print("Student updated successfully")
-
-    def delete_student(self):
-        name = input("Enter student name to delete: ").strip()
-
-        if name not in self.students:
-            print("Student not found.")
-            return
-
-        del self.students[name]
-        self.save_students()
-        print("Student deleted successfully")
+    return render_template("login.html")
 
 
-def main():
-    manager = StudentManager()
+# -----------------------------
+# LOGOUT
+# -----------------------------
 
-    while True:
-        print("\n1. Add Student")
-        print("2. Display Students")
-        print("3. Calculate Average")
-        print("4. Update Student")
-        print("5. Delete Student")
-        print("6. Exit")
+@app.route("/logout")
+def logout():
+    session.pop("user", None)
+    flash("Logged out successfully!", "info")
+    return redirect("/login")
 
-        choice = input("Choose an option: ").strip()
 
-        if choice == "1":
-            manager.add_student()
-        elif choice == "2":
-            manager.display_students()
-        elif choice == "3":
-            manager.calculate_average()
-        elif choice == "4":
-            manager.update_student()
-        elif choice == "5":
-            manager.delete_student()
-        elif choice == "6":
-            print("Exiting program...")
-            break
-        else:
-            print("Invalid choice. Try again.")
-
+# -----------------------------
+# RUN APP
+# -----------------------------
 
 if __name__ == "__main__":
-=======
-import json
-
-
-class StudentManager:
-    def __init__(self, filename="students.json"):
-        self.filename = filename
-        self.students = {}
-        self.load_students()
-
-    def load_students(self):
-        try:
-            with open(self.filename, "r") as file:
-                self.students = json.load(file)
-        except FileNotFoundError:
-            self.students = {}
-
-    def save_students(self):
-        with open(self.filename, "w") as file:
-            json.dump(self.students, file)
-
-    def get_grade(self, score):
-        if score >= 70:
-            return "A"
-        elif score >= 60:
-            return "B"
-        elif score >= 50:
-            return "C"
-        elif score >= 45:
-            return "D"
-        elif score >= 40:
-            return "E"
-        else:
-            return "F"
-
-    def get_valid_score(self):
-        while True:
-            try:
-                score = int(input("Enter score (0–100): "))
-                if 0 <= score <= 100:
-                    return score
-                else:
-                    print("Score must be between 0 and 100.")
-            except ValueError:
-                print("Invalid input. Enter a number.")
-
-    def add_student(self):
-        name = input("Enter student name: ").strip()
-
-        if not name:
-            print("Name cannot be empty.")
-            return
-
-        score = self.get_valid_score()
-        grade = self.get_grade(score)
-
-        self.students[name] = {
-            "score": score,
-            "grade": grade
-        }
-
-        self.save_students()
-        print("Student added successfully")
-
-    def display_students(self):
-        if not self.students:
-            print("No students available")
-            return
-
-        print("\n--- Student Records ---")
-        for name, info in self.students.items():
-            print(name, "- Score:", info["score"], "Grade:", info["grade"])
-
-    def calculate_average(self):
-        if not self.students:
-            print("No students to calculate average")
-            return
-
-        total = sum(info["score"] for info in self.students.values())
-        average = total / len(self.students)
-        print("Average Score:", average)
-
-    def update_student(self):
-        name = input("Enter student name to update: ").strip()
-
-        if name not in self.students:
-            print("Student not found.")
-            return
-
-        new_score = self.get_valid_score()
-        new_grade = self.get_grade(new_score)
-
-        self.students[name]["score"] = new_score
-        self.students[name]["grade"] = new_grade
-
-        self.save_students()
-        print("Student updated successfully")
-
-    def delete_student(self):
-        name = input("Enter student name to delete: ").strip()
-
-        if name not in self.students:
-            print("Student not found.")
-            return
-
-        del self.students[name]
-        self.save_students()
-        print("Student deleted successfully")
-
-
-def main():
-    manager = StudentManager()
-
-    while True:
-        print("\n1. Add Student")
-        print("2. Display Students")
-        print("3. Calculate Average")
-        print("4. Update Student")
-        print("5. Delete Student")
-        print("6. Exit")
-
-        choice = input("Choose an option: ").strip()
-
-        if choice == "1":
-            manager.add_student()
-        elif choice == "2":
-            manager.display_students()
-        elif choice == "3":
-            manager.calculate_average()
-        elif choice == "4":
-            manager.update_student()
-        elif choice == "5":
-            manager.delete_student()
-        elif choice == "6":
-            print("Exiting program...")
-            break
-        else:
-            print("Invalid choice. Try again.")
-
-
-if __name__ == "__main__":
-    main()
+    app.run(debug=True)

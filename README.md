@@ -1,18 +1,17 @@
-# Student Management System (OOP Version)
+# Student Management System
 
-##  Overview
-A console-based Student Management System built using Python and Object-Oriented Programming principles.  
-The system supports full CRUD operations with persistent data storage using JSON.
 
-##  Features
-- Add Student
-- Display Students
-- Update Student
-- Delete Student
-- Calculate Average Score
-- Automatic Grade Calculation (A–F)
-- Persistent Data Storage
-- Input Validation & Error Handling
+A simple Python-based Student Management System that allows users to add, update, delete, and view student records efficiently.
+
+This project demonstrates CRUD operations, file handling, and structured programming using Python.
+
+
+## Features
+- Add new student records
+- View all students
+- Update student details
+- Delete student records
+- Persistent storage using file handling
 
 ##  Technologies Used
 - Python
@@ -32,11 +31,23 @@ The system supports full CRUD operations with persistent data storage using JSON
 - Exception Handling
 - Git Version Control
 
-## 📈 Future Improvements
+## Future Improvements
 - Database integration (SQLite/PostgreSQL)
 - Web version using Flask or Django
 - User authentication system
 
+## Installation
+
+1. Clone the repository:
+   git clone https://github.com/the-techmoh/student-management-system.git
+
+2. Navigate into the project:
+   cd student-management-system
+
+3. Run the program:
+   python student_management.py
+
 ---
 
-Developed by Mohammed Yahaya
+## 👤 Author
+Mohammed Yahaya
