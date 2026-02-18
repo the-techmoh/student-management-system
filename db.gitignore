@@ -1,2 +1,12 @@
 students.db
 __pycache__/
+*.pyc
+dictionary_intro.py
+age_calculation.py
+first_program.py
+function_practice.py
+functions_intro.py
+grade_checker.py
+lists_intro.py
+loop_practice.py
+while_loop.py
